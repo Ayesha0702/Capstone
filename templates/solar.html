@@ -196,36 +196,42 @@
   }
 
   async function runForecast(){
-    console.log("⚡ Run Forecast clicked");
-    const n = parseInt(horizonInput.value,10) || 24;
+  console.log("⚡ Run Forecast clicked");
+  const n = parseInt(horizonInput.value,10) || 24;
 
-    if(genData.length===0 || weatherData.length===0){
-      alert("Please upload both Generation & Weather CSVs first.");
-      return;
-    }
-
-    const payload = { horizon: n, generation: genData, weather: weatherData };
-
-    try {
-      const res = await fetch("http://127.0.0.1:5000/forecast", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify(payload)
-      });
-
-      if(!res.ok) throw new Error("Server error: " + res.statusText);
-
-      const result = await res.json();
-      forecast = result.forecast.map(r=>({ts:new Date(r.timestamp), power:r.power}));
-
-      renderForecastChart();
-      const tot = forecast.reduce((a,b)=>a+b.power,0);
-      summary.innerHTML = `XGBoost forecast for next ${n} hours — total predicted energy: <strong>${(tot/1000).toFixed(2)} kWh</strong>`;
-    } catch(err){
-      console.error("❌ Forecast failed:", err);
-      alert("Forecast failed, check console.");
-    }
+  if(genData.length===0 || weatherData.length===0){
+    alert("Please upload both Generation & Weather CSVs first.");
+    return;
   }
+
+  const payload = { horizon: n, generation: genData, weather: weatherData };
+
+  // ✅ Choose correct backend URL
+  const apiBaseUrl = window.location.hostname === "localhost"
+      ? "http://127.0.0.1:5000"
+      : "https://web-production-cc02.up.railway.app";
+
+  try {
+    const res = await fetch(`${apiBaseUrl}/forecast`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)
+    });
+
+    if(!res.ok) throw new Error("Server error: " + res.statusText);
+
+    const result = await res.json();
+    forecast = result.forecast.map(r=>({ts:new Date(r.timestamp), power:r.power}));
+
+    renderForecastChart();
+    const tot = forecast.reduce((a,b)=>a+b.power,0);
+    summary.innerHTML = `XGBoost forecast for next ${n} hours — total predicted energy: <strong>${(tot/1000).toFixed(2)} kWh</strong>`;
+  } catch(err){
+    console.error("❌ Forecast failed:", err);
+    alert("Forecast failed, check console.");
+  }
+}
+
 
   // attach buttons
   document.getElementById("predictBtn").addEventListener("click", runForecast);
