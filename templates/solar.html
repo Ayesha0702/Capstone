@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SolarML — Data-Driven Solar Forecast</title>
+  <link rel="icon" href="data:;base64,=" />
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#22c55e;--muted:#94a3b8;--glass:rgba(255,255,255,0.03)}
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{margin:0;background:linear-gradient(180deg,#071028 0%,#0b1a2b 100%);color:#e6eef8;min-height:100vh}
+    header{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;background:transparent}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#06b6d4);display:flex;align-items:center;justify-content:center;font-weight:700}
+    nav a{color:var(--muted);margin-left:18px;text-decoration:none}
+    .container{max-width:1100px;margin:28px auto;padding:20px}
+    .hero{display:grid;grid-template-columns:1fr 420px;gap:28px;align-items:center;margin-bottom:22px}
+    .card{background:var(--card);border-radius:14px;padding:20px;box-shadow:0 6px 24px rgba(3,7,18,0.6);backdrop-filter: blur(6px)}
+    h1{margin:0;font-size:28px}
+    p.lead{color:var(--muted);margin-top:8px}
+    .upload{display:flex;flex-direction:column;gap:12px}
+    .filebox{border:2px dashed var(--glass);padding:14px;border-radius:8px;text-align:center;color:var(--muted)}
+    input[type=file]{display:none}
+    .btn{display:inline-block;padding:10px 14px;border-radius:8px;background:linear-gradient(90deg,var(--accent),#06b6d4);color:#00121a;font-weight:600;border:none;cursor:pointer}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
+    th{color:var(--muted);font-weight:600}
+    .chart-wrap{height:260px}
+    .controls{display:flex;gap:10px;align-items:center}
+    .small{font-size:13px;color:var(--muted)}
+    footer{max-width:1100px;margin:28px auto;color:var(--muted);padding:8px 20px}
+    @media (max-width:900px){.hero{grid-template-columns:1fr;}.grid2{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">SM</div>
+      <div>
+        <div style="font-weight:700">SolarML</div>
+        <div style="font-size:12px;color:var(--muted)">Data-driven solar forecasting & insights</div>
+      </div>
+    </div>
+    <nav>
+      <a href="#about">About</a>
+      <a href="#upload">Upload</a>
+      <a href="#dashboard">Dashboard</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="card">
+        <h1>SolarML — Predict. Optimize. Save.</h1>
+        <p class="lead">Upload solar panel data, run forecasts with XGBoost (via backend), and visualize energy predictions.</p>
+
+        <div style="margin-top:16px">
+          <strong>How it works</strong>
+          <ol style="color:var(--muted);margin-top:8px">
+            <li>Upload CSV with timestamp & power output.</li>
+            <li>Data is sent to backend where XGBoost model predicts next hours.</li>
+            <li>Results are shown in chart & downloadable CSV.</li>
+          </ol>
+        </div>
+
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+          <button id="sampleBtn" class="btn">Load Sample Data</button>
+          <button id="predictBtn" class="btn">Run Forecast</button>
+          <button id="downloadBtn" class="btn">Download Forecast</button>
+        </div>
+      </div>
+
+      <aside class="card" id="upload">
+        <h3 style="margin-top:0">Upload Data</h3>
+        <div class="upload">
+          <label for="genInput" class="filebox" id="genBox">Click to select Generation CSV</label>
+          <input id="genInput" type="file" accept=".csv" />
+          <label for="weatherInput" class="filebox" id="weatherBox">Click to select Weather CSV</label>
+          <input id="weatherInput" type="file" accept=".csv" />
+          <div class="small">CSV example: <code>2025-09-08 10:00,123.4</code></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="card" id="dashboard">
+      <h3 style="margin:0 0 12px 0">Dashboard</h3>
+      <div class="grid2">
+        <div>
+          <div class="card" style="padding:12px">
+            <strong>Raw data preview</strong>
+            <div style="margin-top:8px;max-height:200px;overflow:auto">
+              <table id="dataTable"><thead><tr><th>Timestamp</th><th>Power (kW)</th></tr></thead><tbody id="dataTbody"></tbody></table>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px;padding:12px">
+            <strong>Forecast summary</strong>
+            <div style="margin-top:8px;color:var(--muted)" id="summary">No forecast yet. Click <em>Run Forecast</em>.</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card chart-wrap" style="padding:12px">
+            <canvas id="forecastChart"></canvas>
+          </div>
+
+          <div style="margin-top:12px" class="card" id="controls">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+              <div><strong>Parameters</strong><div class="small">Adjust forecast horizon</div></div>
+              <div class="controls">
+                <label class="small">Horizon (hrs)</label>
+                <input id="horizonInput" type="number" min="1" max="168" value="24" style="width:60px" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Built for the SolarML capstone project — now using Flask + XGBoost backend.
+  </footer>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+  const genInput = document.getElementById('genInput');
+  const weatherInput = document.getElementById('weatherInput');
+  const genBox = document.getElementById('genBox');
+  const weatherBox = document.getElementById('weatherBox');
+  const summary = document.getElementById('summary');
+  const dataTbody = document.getElementById('dataTbody');
+  const horizonInput = document.getElementById('horizonInput');
+
+  let genData = [];
+  let weatherData = [];
+  let forecast = [];
+  let chart;
+
+  genBox.addEventListener('click', ()=> genInput.click());
+  weatherBox.addEventListener('click', ()=> weatherInput.click());
+
+  genInput.addEventListener('change', e=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    genBox.textContent = f.name;
+    readCSVFile(f,"gen");
+  });
+
+  weatherInput.addEventListener('change', e=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    weatherBox.textContent = f.name;
+    readCSVFile(f,"weather");
+  });
+
+  function readCSVFile(file, type){
+    const reader = new FileReader();
+    reader.onload = e=>{ parseCSV(e.target.result, type); };
+    reader.readAsText(file);
+  }
+
+  function parseCSV(text, type){
+    const rows = [];
+    const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+    for(const l of lines){
+      const parts = l.split(',');
+      if(parts.length<2) continue;
+      const ts = new Date(parts[0].trim());
+      const val = parseFloat(parts[1]);
+      if(!isNaN(ts.getTime()) && !isNaN(val)) rows.push({timestamp: ts.toISOString(), value: val});
+    }
+    if(type==="gen") genData = rows;
+    else weatherData = rows;
+    summary.textContent = `Loaded ${genData.length} gen rows & ${weatherData.length} weather rows.`;
+  }
+
+  function renderForecastChart(){
+    const ctx = document.getElementById("forecastChart").getContext("2d");
+    if(chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type:"line",
+      data:{
+        labels:forecast.map(r=>r.ts.toLocaleString()),
+        datasets:[{
+          label:"Forecast Power (W)",
+          data:forecast.map(r=>r.power),
+          borderColor:"#22c55e",
+          backgroundColor:"rgba(34,197,94,0.2)"
+        }]
+      },
+      options:{responsive:true,scales:{x:{ticks:{autoSkip:true,maxRotation:45,minRotation:45}},y:{beginAtZero:true}}}
+    });
+  }
+
+  async function runForecast(){
+    console.log("⚡ Run Forecast clicked");
+    const n = parseInt(horizonInput.value,10) || 24;
+
+    if(genData.length===0 || weatherData.length===0){
+      alert("Please upload both Generation & Weather CSVs first.");
+      return;
+    }
+
+    const payload = { horizon: n, generation: genData, weather: weatherData };
+
+    try {
+      const res = await fetch("http://127.0.0.1:5000/forecast", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload)
+      });
+
+      if(!res.ok) throw new Error("Server error: " + res.statusText);
+
+      const result = await res.json();
+      forecast = result.forecast.map(r=>({ts:new Date(r.timestamp), power:r.power}));
+
+      renderForecastChart();
+      const tot = forecast.reduce((a,b)=>a+b.power,0);
+      summary.innerHTML = `XGBoost forecast for next ${n} hours — total predicted energy: <strong>${(tot/1000).toFixed(2)} kWh</strong>`;
+    } catch(err){
+      console.error("❌ Forecast failed:", err);
+      alert("Forecast failed, check console.");
+    }
+  }
+
+  // attach buttons
+  document.getElementById("predictBtn").addEventListener("click", runForecast);
+  document.getElementById("sampleBtn").addEventListener("click", ()=>{alert("TODO: load sample data");});
+  </script>
+</body>
+</html>
