@@ -3,9 +3,10 @@ import joblib
 import pandas as pd
 from datetime import timedelta
 import os 
+from flask_cors import CORS
 
 app = Flask(__name__)
-
+CORS(app)
 # Load trained model
 try:
     model = joblib.load("xgb_simple_model.pkl")
