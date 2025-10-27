@@ -125,77 +125,77 @@
 
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script>
-  const genInput = document.getElementById('genInput');
-  const weatherInput = document.getElementById('weatherInput');
-  const genBox = document.getElementById('genBox');
-  const weatherBox = document.getElementById('weatherBox');
-  const summary = document.getElementById('summary');
-  const dataTbody = document.getElementById('dataTbody');
-  const horizonInput = document.getElementById('horizonInput');
+<script>
+const genInput = document.getElementById('genInput');
+const weatherInput = document.getElementById('weatherInput');
+const genBox = document.getElementById('genBox');
+const weatherBox = document.getElementById('weatherBox');
+const summary = document.getElementById('summary');
+const dataTbody = document.getElementById('dataTbody');
+const horizonInput = document.getElementById('horizonInput');
 
-  let genData = [];
-  let weatherData = [];
-  let forecast = [];
-  let chart;
+let genData = [];
+let weatherData = [];
+let forecast = [];
+let chart;
 
-  genBox.addEventListener('click', ()=> genInput.click());
-  weatherBox.addEventListener('click', ()=> weatherInput.click());
+genBox.addEventListener('click', ()=> genInput.click());
+weatherBox.addEventListener('click', ()=> weatherInput.click());
 
-  genInput.addEventListener('change', e=>{
-    const f = e.target.files[0];
-    if(!f) return;
-    genBox.textContent = f.name;
-    readCSVFile(f,"gen");
+genInput.addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  genBox.textContent = f.name;
+  readCSVFile(f,"gen");
+});
+
+weatherInput.addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  weatherBox.textContent = f.name;
+  readCSVFile(f,"weather");
+});
+
+function readCSVFile(file, type){
+  const reader = new FileReader();
+  reader.onload = e=>{ parseCSV(e.target.result, type); };
+  reader.readAsText(file);
+}
+
+function parseCSV(text, type){
+  const rows = [];
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  for(const l of lines){
+    const parts = l.split(',');
+    if(parts.length<2) continue;
+    const ts = new Date(parts[0].trim());
+    const val = parseFloat(parts[1]);
+    if(!isNaN(ts.getTime()) && !isNaN(val)) rows.push({timestamp: ts.toISOString(), value: val});
+  }
+  if(type==="gen") genData = rows;
+  else weatherData = rows;
+  summary.textContent = `Loaded ${genData.length} gen rows & ${weatherData.length} weather rows.`;
+}
+
+function renderForecastChart(){
+  const ctx = document.getElementById("forecastChart").getContext("2d");
+  if(chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type:"line",
+    data:{
+      labels:forecast.map(r=>r.ts.toLocaleString()),
+      datasets:[{
+        label:"Forecast Power (W)",
+        data:forecast.map(r=>r.power),
+        borderColor:"#22c55e",
+        backgroundColor:"rgba(34,197,94,0.2)"
+      }]
+    },
+    options:{responsive:true,scales:{x:{ticks:{autoSkip:true,maxRotation:45,minRotation:45}},y:{beginAtZero:true}}}
   });
+}
 
-  weatherInput.addEventListener('change', e=>{
-    const f = e.target.files[0];
-    if(!f) return;
-    weatherBox.textContent = f.name;
-    readCSVFile(f,"weather");
-  });
-
-  function readCSVFile(file, type){
-    const reader = new FileReader();
-    reader.onload = e=>{ parseCSV(e.target.result, type); };
-    reader.readAsText(file);
-  }
-
-  function parseCSV(text, type){
-    const rows = [];
-    const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
-    for(const l of lines){
-      const parts = l.split(',');
-      if(parts.length<2) continue;
-      const ts = new Date(parts[0].trim());
-      const val = parseFloat(parts[1]);
-      if(!isNaN(ts.getTime()) && !isNaN(val)) rows.push({timestamp: ts.toISOString(), value: val});
-    }
-    if(type==="gen") genData = rows;
-    else weatherData = rows;
-    summary.textContent = `Loaded ${genData.length} gen rows & ${weatherData.length} weather rows.`;
-  }
-
-  function renderForecastChart(){
-    const ctx = document.getElementById("forecastChart").getContext("2d");
-    if(chart) chart.destroy();
-    chart = new Chart(ctx, {
-      type:"line",
-      data:{
-        labels:forecast.map(r=>r.ts.toLocaleString()),
-        datasets:[{
-          label:"Forecast Power (W)",
-          data:forecast.map(r=>r.power),
-          borderColor:"#22c55e",
-          backgroundColor:"rgba(34,197,94,0.2)"
-        }]
-      },
-      options:{responsive:true,scales:{x:{ticks:{autoSkip:true,maxRotation:45,minRotation:45}},y:{beginAtZero:true}}}
-    });
-  }
-
-  async function runForecast(){
+async function runForecast(){
   console.log("⚡ Run Forecast clicked");
   const n = parseInt(horizonInput.value,10) || 24;
 
@@ -206,8 +206,8 @@
 
   const payload = { horizon: n, generation: genData, weather: weatherData };
 
-  // ✅ Choose correct backend URL
-  const apiBaseUrl = window.location.hostname === "localhost"
+  // ✅ Use localhost only when running locally, otherwise Railway
+  const apiBaseUrl = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
       ? "http://127.0.0.1:5000"
       : "https://web-production-cc02.up.railway.app";
 
@@ -232,10 +232,10 @@
   }
 }
 
+// attach buttons
+document.getElementById("predictBtn").addEventListener("click", runForecast);
+document.getElementById("sampleBtn").addEventListener("click", ()=>{alert("TODO: load sample data");});
+</script>
 
-  // attach buttons
-  document.getElementById("predictBtn").addEventListener("click", runForecast);
-  document.getElementById("sampleBtn").addEventListener("click", ()=>{alert("TODO: load sample data");});
-  </script>
 </body>
 </html>
