@@ -209,7 +209,7 @@ async function runForecast(){
   // ✅ Use localhost only when running locally, otherwise Railway
   const apiBaseUrl = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
       ? "http://127.0.0.1:5000"
-      : "https://web-production-cc02.up.railway.app";
+      : "https://capstone-2-3uw5.onrender.com/";
 
   try {
     const res = await fetch(`${apiBaseUrl}/forecast`, {
