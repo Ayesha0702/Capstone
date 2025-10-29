@@ -1,12 +1,14 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_file
 import joblib
 import pandas as pd
 from datetime import timedelta
-import os 
+import os
 from flask_cors import CORS
+import io
 
 app = Flask(__name__)
 CORS(app)
+
 # Load trained model
 try:
     model = joblib.load("xgb_simple_model.pkl")
@@ -15,9 +17,11 @@ except Exception as e:
     print("❌ Failed to load model:", e)
     model = None
 
+
 @app.route("/")
 def home():
     return render_template("solar.html")
+
 
 @app.route("/forecast", methods=["POST"])
 def forecast():
@@ -50,14 +54,14 @@ def forecast():
         weather["timestamp"] = pd.to_datetime(weather["timestamp"])
 
         # Merge on timestamp
-        df = pd.merge(gen, weather, on="timestamp", how="inner", suffixes=("_gen","_weather"))
+        df = pd.merge(gen, weather, on="timestamp", how="inner", suffixes=("_gen", "_weather"))
         if df.empty:
             return jsonify({"error": "No matching timestamps in generation and weather data"}), 400
 
         # Rename to match model features
         df = df.rename(columns={"value_gen": "DC_POWER", "value_weather": "IRRADIATION"})
 
-        # Time features
+        # Add time-based features
         df["hour"] = df["timestamp"].dt.hour
         df["dayofweek"] = df["timestamp"].dt.dayofweek
 
@@ -68,13 +72,14 @@ def forecast():
         dc_power = last_row["DC_POWER"]
 
         for i in range(horizon):
-            next_time = last_time + timedelta(hours=i+1)
+            next_time = last_time + timedelta(hours=i + 1)
+
             # Find irradiation for next_time from weather DataFrame
             irradiation_row = weather[weather["timestamp"] == next_time]
             if not irradiation_row.empty:
                 irradiation = irradiation_row.iloc[0]["value"]
             else:
-                irradiation = last_row["IRRADIATION"]  # fallback: use last value
+                irradiation = last_row["IRRADIATION"]  # fallback to last value
 
             features = pd.DataFrame([{
                 "hour": next_time.hour,
@@ -84,16 +89,62 @@ def forecast():
             }])
 
             pred = model.predict(features)[0]
-            predictions.append({"timestamp": next_time.isoformat(), "power": float(pred)})
+            predictions.append({
+                "timestamp": next_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "power": float(pred)
+            })
             dc_power = pred
 
-        return jsonify({"forecast": predictions})
+        # Calculate total forecasted energy (kWh)
+        total_energy = sum(p["power"] for p in predictions) / 1000
+
+        return jsonify({
+            "message": f"✅ Forecast completed for {horizon} hours.",
+            "total_energy": f"{total_energy:.2f} kWh",
+            "forecast": predictions
+        })
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print("❌ Error in /forecast:", e)
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/download_forecast", methods=["POST"])
+def download_forecast():
+    try:
+        data = request.get_json()
+        forecast_data = data.get("forecast_data")
+
+        if not forecast_data:
+            return jsonify({"error": "No forecast data received"}), 400
+
+        df = pd.DataFrame(forecast_data)
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Create in-memory CSV
+        csv_buffer = io.StringIO()
+        df.to_csv(csv_buffer, index=False)
+        csv_buffer.seek(0)
+
+        return send_file(
+            io.BytesIO(csv_buffer.getvalue().encode()),
+            mimetype="text/csv",
+            as_attachment=True,
+            download_name="solarml_forecast.csv"
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print("❌ Error in /download_forecast:", e)
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Railway provides PORT dynamically
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
+
