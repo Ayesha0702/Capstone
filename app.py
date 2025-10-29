@@ -5,9 +5,12 @@ from datetime import timedelta
 import os
 from flask_cors import CORS
 import io
+from flask import send_from_directory
+import traceback
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
+
 
 # Load trained model
 try:
@@ -22,6 +25,13 @@ except Exception as e:
 def home():
     return render_template("solar.html")
 
+@app.route("/ping")
+def ping():
+    return "Server is alive ✅"
+
+@app.route('/data/<filename>')
+def serve_data(filename):
+    return send_from_directory('data', filename)
 
 @app.route("/forecast", methods=["POST"])
 def forecast():
@@ -58,8 +68,20 @@ def forecast():
         if df.empty:
             return jsonify({"error": "No matching timestamps in generation and weather data"}), 400
 
-        # Rename to match model features
-        df = df.rename(columns={"value_gen": "DC_POWER", "value_weather": "IRRADIATION"})
+        # Rename columns if they exist, else fallback
+        if "value_gen" in df.columns:
+            df.rename(columns={"value_gen": "DC_POWER"}, inplace=True)
+        elif "value" in gen.columns:
+            df.rename(columns={"value": "DC_POWER"}, inplace=True)
+        else:
+            return jsonify({"error": "Cannot find DC_POWER column"}), 400
+
+        if "value_weather" in df.columns:
+            df.rename(columns={"value_weather": "IRRADIATION"}, inplace=True)
+        elif "value" in weather.columns:
+            df.rename(columns={"value": "IRRADIATION"}, inplace=True)
+        else:
+            return jsonify({"error": "Cannot find IRRADIATION column"}), 400
 
         # Add time-based features
         df["hour"] = df["timestamp"].dt.hour
@@ -105,10 +127,8 @@ def forecast():
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print("❌ Error in /forecast:", e)
-        return jsonify({"error": str(e)}), 500
+     traceback.print_exc()
+    return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 
 @app.route("/download_forecast", methods=["POST"])
@@ -146,3 +166,4 @@ def download_forecast():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
