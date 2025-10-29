@@ -120,12 +120,14 @@
   </main>
 
   <footer>
-    Built for the SolarML capstone project — now using Flask + XGBoost backend.
+    Built for the SolarML capstone project — Flask + XGBoost backend.
   </footer>
 
-  <!-- Chart.js CDN -->
+  <!-- ✅ Add libraries here -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+
+  <script>
 const genInput = document.getElementById('genInput');
 const weatherInput = document.getElementById('weatherInput');
 const genBox = document.getElementById('genBox');
@@ -206,10 +208,9 @@ async function runForecast(){
 
   const payload = { horizon: n, generation: genData, weather: weatherData };
 
-  // ✅ Use localhost only when running locally, otherwise Railway
   const apiBaseUrl = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
       ? "http://127.0.0.1:5000"
-      : "https://solar-ml-cjzz.onrender.com/";
+      : "https://capstone-2-3uw5.onrender.com";
 
   try {
     const res = await fetch(`${apiBaseUrl}/forecast`, {
@@ -232,10 +233,42 @@ async function runForecast(){
   }
 }
 
-// attach buttons
+function downloadForecast() {
+  if (!forecast.length) { 
+    alert('⚠️ Please run the forecast first before downloading.'); 
+    return; 
+  }
+
+  const n = parseInt(horizonInput.value, 10) || 24;  // user-entered hours
+  const totalPower = forecast.reduce((a, b) => a + b.power, 0);
+  const totalKWh = (totalPower / 1000).toFixed(2);
+
+  // 📄 Create CSV content
+  let csv = 'datetime,forecast_kW\n';
+  csv += forecast
+    .map(p => `${dayjs(p.ts).format('YYYY-MM-DD HH:mm')},${(p.power / 1000).toFixed(3)}`)
+    .join('\n');
+  csv += `\n\nTotal forecast energy for the next ${n} hours is,${totalKWh} kWh`;
+
+  // 💾 Download logic
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'solarml_forecast.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+  // ✅ Popup confirmation
+  alert(`✅ Total forecast energy for the next ${n} hours is ${totalKWh} kWh.\nFile downloaded as solarml_forecast.csv.`);
+}
+
+//attach buttons
 document.getElementById("predictBtn").addEventListener("click", runForecast);
 document.getElementById("sampleBtn").addEventListener("click", ()=>{alert("TODO: load sample data");});
+document.getElementById("downloadBtn").addEventListener("click", downloadForecast);
 </script>
-
 </body>
 </html>
