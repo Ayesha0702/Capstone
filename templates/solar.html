@@ -141,14 +141,20 @@
 
   <script>
 let genData = [], weatherData = [], forecast = [], chart;
-let summary = document.getElementById("summary"); // FIX: define summary
+let summary = document.getElementById("summary");
 
+// Improved CSV parser: handles headers, blank lines, NaN, extra whitespace, etc.
 function parseCSV(text) {
-  const rows = text.trim().split("\n").slice(1);
+  const rows = text.trim().split(/\r?\n/).filter(r => r.trim() !== "");
+  // Remove header if present
+  if (rows.length && rows[0].toLowerCase().includes("timestamp") && rows[0].toLowerCase().includes("value")) {
+    rows.shift();
+  }
   return rows.map(row => {
     const [timestamp, value] = row.split(",");
-    return { timestamp, value: parseFloat(value) };
-  });
+    if (!timestamp || isNaN(parseFloat(value))) return null;
+    return { timestamp: timestamp.trim(), value: parseFloat(value) };
+  }).filter(x => x !== null);
 }
 
 function renderTable(tableId, data, label) {
@@ -205,8 +211,12 @@ document.getElementById("sampleBtn").addEventListener("click", async () => {
   try {
     const genRes = await fetch("/data/Plant_2_Generation_Data.csv");
     const weatherRes = await fetch("/data/Plant_2_Weather_Sensor_Data.csv");
-    genData = parseCSV(await genRes.text());
-    weatherData = parseCSV(await weatherRes.text());
+    if (!genRes.ok || !weatherRes.ok) throw new Error("Sample data files not found on server");
+    const genText = await genRes.text();
+    const weatherText = await weatherRes.text();
+    genData = parseCSV(genText);
+    weatherData = parseCSV(weatherText);
+    if (!genData.length || !weatherData.length) throw new Error("Sample data is empty or incorrectly formatted");
     showPreview();
     summary.textContent = `✅ Sample data loaded successfully (${genData.length} gen rows & ${weatherData.length} weather rows).`;
 
@@ -225,23 +235,21 @@ document.getElementById("sampleBtn").addEventListener("click", async () => {
     document.body.appendChild(popup);
     setTimeout(() => popup.remove(), 2500);
   } catch (err) {
-    alert("❌ Failed to load sample data.");
+    summary.textContent = "❌ Failed to load sample data: " + err.message;
+    alert("❌ Failed to load sample data: " + err.message);
   }
 });
 
 // ---------- FORECAST ----------
-// ADD DEBUG LOGS
-console.log("Checking if predictBtn exists:", document.getElementById("predictBtn"));
 document.getElementById("predictBtn").addEventListener("click", () => {
-  console.log("Run Forecast button clicked!");
   runForecast();
 });
 
 async function runForecast() {
   const n = parseInt(document.getElementById("horizonInput").value, 10) || 24;
   if (!genData.length || !weatherData.length) return alert("Please upload both CSV files first!");
-  const apiBaseUrl = "http://127.0.0.1:5000"; // Use your local Flask server
-
+  // Use relative path for API (works locally and deployed)
+  const apiBaseUrl = "";
   const payload = { horizon: n, generation: genData, weather: weatherData };
   try {
     const res = await fetch(`${apiBaseUrl}/forecast`, {
@@ -277,7 +285,7 @@ function renderForecastChart() {
   chart = new Chart(ctx, {
     type: "line",
     data: {
-      labels: forecast.map(r => r.ts.toLocaleString()),
+      labels: forecast.map(r => dayjs(r.ts).format('YYYY-MM-DD HH:mm')),
       datasets: [{
         label: "Forecast Power (W)",
         data: forecast.map(r => r.power),
@@ -295,7 +303,7 @@ function downloadForecast() {
   const n = parseInt(document.getElementById("horizonInput").value, 10) || 24;
   const totalKWh = (forecast.reduce((a, b) => a + b.power, 0) / 1000).toFixed(2);
   let csv = 'datetime,forecast_kW\n';
-  csv += forecast.map(p => `${p.ts.toLocaleString()},${(p.power / 1000).toFixed(3)}`).join('\n');
+  csv += forecast.map(p => `${dayjs(p.ts).format('YYYY-MM-DD HH:mm')},${(p.power / 1000).toFixed(3)}`).join('\n');
   csv += `\n\nTotal forecast energy for the next ${n} hours is,${totalKWh} kWh`;
   const blob = new Blob([csv], { type: 'text/csv' });
   const link = document.createElement('a');
