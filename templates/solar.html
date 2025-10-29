@@ -15,11 +15,11 @@
     nav a{color:var(--muted);margin-left:18px;text-decoration:none}
     .container{max-width:1100px;margin:28px auto;padding:20px}
     .hero{display:grid;grid-template-columns:1fr 420px;gap:28px;align-items:center;margin-bottom:22px}
-    .card{background:var(--card);border-radius:14px;padding:20px;box-shadow:0 6px 24px rgba(3,7,18,0.6);backdrop-filter: blur(6px)}
+    .card{background:var(--card);border-radius:14px;padding:20px;box-shadow:0 6px 24px rgba(3,7,18,0.6);backdrop-filter:blur(6px)}
     h1{margin:0;font-size:28px}
     p.lead{color:var(--muted);margin-top:8px}
     .upload{display:flex;flex-direction:column;gap:12px}
-    .filebox{border:2px dashed var(--glass);padding:14px;border-radius:8px;text-align:center;color:var(--muted)}
+    .filebox{border:2px dashed var(--glass);padding:14px;border-radius:8px;text-align:center;color:var(--muted);cursor:pointer}
     input[type=file]{display:none}
     .btn{display:inline-block;padding:10px 14px;border-radius:8px;background:linear-gradient(90deg,var(--accent),#06b6d4);color:#00121a;font-weight:600;border:none;cursor:pointer}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
@@ -30,9 +30,10 @@
     .controls{display:flex;gap:10px;align-items:center}
     .small{font-size:13px;color:var(--muted)}
     footer{max-width:1100px;margin:28px auto;color:var(--muted);padding:8px 20px}
-    @media (max-width:900px){.hero{grid-template-columns:1fr;}.grid2{grid-template-columns:1fr}}
+    @media (max-width:900px){.hero{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
   </style>
 </head>
+
 <body>
   <header>
     <div class="brand">
@@ -53,17 +54,15 @@
     <section class="hero">
       <div class="card">
         <h1>SolarML — Predict. Optimize. Save.</h1>
-        <p class="lead">Upload solar panel data, run forecasts with XGBoost (via backend), and visualize energy predictions.</p>
-
+        <p class="lead">Upload solar data, forecast energy using XGBoost, and visualize results instantly.</p>
         <div style="margin-top:16px">
           <strong>How it works</strong>
           <ol style="color:var(--muted);margin-top:8px">
-            <li>Upload CSV with timestamp & power output.</li>
-            <li>Data is sent to backend where XGBoost model predicts next hours.</li>
-            <li>Results are shown in chart & downloadable CSV.</li>
+            <li>Upload Generation and Weather CSV files.</li>
+            <li>Our XGBoost model predicts the next N hours of solar energy.</li>
+            <li>Results are shown in a chart and downloadable as CSV.</li>
           </ol>
         </div>
-
         <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
           <button id="sampleBtn" class="btn">Load Sample Data</button>
           <button id="predictBtn" class="btn">Run Forecast</button>
@@ -78,25 +77,24 @@
           <input id="genInput" type="file" accept=".csv" />
           <label for="weatherInput" class="filebox" id="weatherBox">Click to select Weather CSV</label>
           <input id="weatherInput" type="file" accept=".csv" />
-          <div class="small">CSV example: <code>2025-09-08 10:00,123.4</code></div>
+          <div class="small">Example format: <code>2025-09-08 10:00,123.4</code></div>
         </div>
       </aside>
     </section>
 
     <section class="card" id="dashboard">
-      <h3 style="margin:0 0 12px 0">Dashboard</h3>
+      <h3>Dashboard</h3>
       <div class="grid2">
         <div>
           <div class="card" style="padding:12px">
-            <strong>Raw data preview</strong>
+            <strong>Raw Data Preview</strong>
             <div style="margin-top:8px;max-height:200px;overflow:auto">
-              <table id="dataTable"><thead><tr><th>Timestamp</th><th>Power (kW)</th></tr></thead><tbody id="dataTbody"></tbody></table>
+              <table><thead><tr><th>Timestamp</th><th>Power (kW)</th></tr></thead><tbody id="dataTbody"></tbody></table>
             </div>
           </div>
-
           <div class="card" style="margin-top:12px;padding:12px">
-            <strong>Forecast summary</strong>
-            <div style="margin-top:8px;color:var(--muted)" id="summary">No forecast yet. Click <em>Run Forecast</em>.</div>
+            <strong>Forecast Summary</strong>
+            <div style="margin-top:8px;color:var(--muted)" id="summary">No forecast yet. Click “Run Forecast”.</div>
           </div>
         </div>
 
@@ -104,14 +102,10 @@
           <div class="card chart-wrap" style="padding:12px">
             <canvas id="forecastChart"></canvas>
           </div>
-
-          <div style="margin-top:12px" class="card" id="controls">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
-              <div><strong>Parameters</strong><div class="small">Adjust forecast horizon</div></div>
-              <div class="controls">
-                <label class="small">Horizon (hrs)</label>
-                <input id="horizonInput" type="number" min="1" max="168" value="24" style="width:60px" />
-              </div>
+          <div class="card" style="margin-top:12px">
+            <div class="controls">
+              <label class="small">Horizon (hours):</label>
+              <input id="horizonInput" type="number" min="1" max="168" value="24" style="width:70px" />
             </div>
           </div>
         </div>
@@ -119,11 +113,8 @@
     </section>
   </main>
 
-  <footer>
-    Built for the SolarML capstone project — Flask + XGBoost backend.
-  </footer>
+  <footer>Built with Flask + XGBoost for SolarML 🌞</footer>
 
-  <!-- ✅ Add libraries here -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
 
@@ -135,140 +126,147 @@ const weatherBox = document.getElementById('weatherBox');
 const summary = document.getElementById('summary');
 const dataTbody = document.getElementById('dataTbody');
 const horizonInput = document.getElementById('horizonInput');
+let genData = [], weatherData = [], forecast = [], chart;
 
-let genData = [];
-let weatherData = [];
-let forecast = [];
-let chart;
-
-genBox.addEventListener('click', ()=> genInput.click());
-weatherBox.addEventListener('click', ()=> weatherInput.click());
-
-genInput.addEventListener('change', e=>{
-  const f = e.target.files[0];
-  if(!f) return;
-  genBox.textContent = f.name;
-  readCSVFile(f,"gen");
-});
-
-weatherInput.addEventListener('change', e=>{
-  const f = e.target.files[0];
-  if(!f) return;
-  weatherBox.textContent = f.name;
-  readCSVFile(f,"weather");
-});
-
-function readCSVFile(file, type){
+function readCSVFile(file, type) {
   const reader = new FileReader();
-  reader.onload = e=>{ parseCSV(e.target.result, type); };
+  reader.onload = e => parseCSV(e.target.result, type);
   reader.readAsText(file);
 }
 
-function parseCSV(text, type){
+function parseCSV(text, type) {
   const rows = [];
-  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
-  for(const l of lines){
-    const parts = l.split(',');
-    if(parts.length<2) continue;
-    const ts = new Date(parts[0].trim());
-    const val = parseFloat(parts[1]);
-    if(!isNaN(ts.getTime()) && !isNaN(val)) rows.push({timestamp: ts.toISOString(), value: val});
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  for (const l of lines) {
+    const [time, val] = l.split(',');
+    if (!time || isNaN(parseFloat(val))) continue;
+    rows.push({ timestamp: new Date(time.trim()).toISOString(), value: parseFloat(val) });
   }
-  if(type==="gen") genData = rows;
-  else weatherData = rows;
+  if (type === "gen") genData = rows; else weatherData = rows;
   summary.textContent = `Loaded ${genData.length} gen rows & ${weatherData.length} weather rows.`;
 }
 
-function renderForecastChart(){
+function renderForecastChart() {
   const ctx = document.getElementById("forecastChart").getContext("2d");
-  if(chart) chart.destroy();
+  if (chart) chart.destroy();
   chart = new Chart(ctx, {
-    type:"line",
-    data:{
-      labels:forecast.map(r=>r.ts.toLocaleString()),
-      datasets:[{
-        label:"Forecast Power (W)",
-        data:forecast.map(r=>r.power),
-        borderColor:"#22c55e",
-        backgroundColor:"rgba(34,197,94,0.2)"
+    type: "line",
+    data: {
+      labels: forecast.map(r => dayjs(r.ts).format('HH:mm')),
+      datasets: [{
+        label: "Forecast Power (W)",
+        data: forecast.map(r => r.power),
+        borderColor: "#22c55e",
+        backgroundColor: "rgba(34,197,94,0.2)"
       }]
     },
-    options:{responsive:true,scales:{x:{ticks:{autoSkip:true,maxRotation:45,minRotation:45}},y:{beginAtZero:true}}}
+    options: { responsive: true }
   });
 }
 
-async function runForecast(){
-  console.log("⚡ Run Forecast clicked");
-  const n = parseInt(horizonInput.value,10) || 24;
-
-  if(genData.length===0 || weatherData.length===0){
-    alert("Please upload both Generation & Weather CSVs first.");
-    return;
-  }
+async function runForecast() {
+  const n = parseInt(horizonInput.value, 10) || 24;
+  if (!genData.length || !weatherData.length) return alert("Please upload both CSV files first!");
 
   const payload = { horizon: n, generation: genData, weather: weatherData };
-
-  const apiBaseUrl = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-      ? "http://127.0.0.1:5000"
-      : "https://solar-ml-cjzz.onrender.com"";
+  const apiBaseUrl = ""; // ✅ auto-detects Render or localhost
 
   try {
     const res = await fetch(`${apiBaseUrl}/forecast`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(payload)
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
 
-    if(!res.ok) throw new Error("Server error: " + res.statusText);
-
+    if (!res.ok) throw new Error(`Server error (${res.status})`);
     const result = await res.json();
-    forecast = result.forecast.map(r=>({ts:new Date(r.timestamp), power:r.power}));
+    if (!result.forecast?.length) throw new Error("Empty forecast returned.");
 
+    forecast = result.forecast.map(r => ({ ts: new Date(r.timestamp), power: r.power }));
     renderForecastChart();
-    const tot = forecast.reduce((a,b)=>a+b.power,0);
-    summary.innerHTML = `XGBoost forecast for next ${n} hours — total predicted energy: <strong>${(tot/1000).toFixed(2)} kWh</strong>`;
-  } catch(err){
+
+    const tot = forecast.reduce((a, b) => a + b.power, 0);
+    const totalKWh = (tot / 1000).toFixed(2);
+    summary.innerHTML = `✅ Total forecast energy for the next <strong>${n}</strong> hours is <strong>${totalKWh} kWh</strong>.`;
+  } catch (err) {
     console.error("❌ Forecast failed:", err);
-    alert("Forecast failed, check console.");
+    alert("Forecast failed. Please check your backend logs or console.");
   }
 }
 
 function downloadForecast() {
-  if (!forecast.length) { 
-    alert('⚠️ Please run the forecast first before downloading.'); 
-    return; 
-  }
-
-  const n = parseInt(horizonInput.value, 10) || 24;  // user-entered hours
-  const totalPower = forecast.reduce((a, b) => a + b.power, 0);
-  const totalKWh = (totalPower / 1000).toFixed(2);
-
-  // 📄 Create CSV content
+  if (!forecast.length) return alert("⚠️ Run the forecast first.");
+  const n = parseInt(horizonInput.value, 10) || 24;
+  const totalKWh = (forecast.reduce((a, b) => a + b.power, 0) / 1000).toFixed(2);
   let csv = 'datetime,forecast_kW\n';
-  csv += forecast
-    .map(p => `${dayjs(p.ts).format('YYYY-MM-DD HH:mm')},${(p.power / 1000).toFixed(3)}`)
-    .join('\n');
+  csv += forecast.map(p => `${dayjs(p.ts).format('YYYY-MM-DD HH:mm')},${(p.power / 1000).toFixed(3)}`).join('\n');
   csv += `\n\nTotal forecast energy for the next ${n} hours is,${totalKWh} kWh`;
-
-  // 💾 Download logic
   const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
-  link.href = url;
+  link.href = URL.createObjectURL(blob);
   link.download = 'solarml_forecast.csv';
-  document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-
-  // ✅ Popup confirmation
   alert(`✅ Total forecast energy for the next ${n} hours is ${totalKWh} kWh.\nFile downloaded as solarml_forecast.csv.`);
 }
 
-//attach buttons
+genBox.addEventListener('click', () => genInput.click());
+weatherBox.addEventListener('click', () => weatherInput.click());
+genInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) {
+    genBox.textContent = `📁 ${file.name}`;
+    readCSVFile(file, "gen");
+  }
+});
+
+weatherInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) {
+    weatherBox.textContent = `📁 ${file.name}`;
+    readCSVFile(file, "weather");
+  }
+});
 document.getElementById("predictBtn").addEventListener("click", runForecast);
-document.getElementById("sampleBtn").addEventListener("click", ()=>{alert("TODO: load sample data");});
 document.getElementById("downloadBtn").addEventListener("click", downloadForecast);
-</script>
+// Load Sample Data Button
+document.getElementById("sampleBtn").addEventListener("click", async () => {
+  const sampleGen = [
+    { timestamp: "2025-09-08T10:00:00Z", value: 123.4 },
+    { timestamp: "2025-09-08T11:00:00Z", value: 150.2 },
+    { timestamp: "2025-09-08T12:00:00Z", value: 175.6 }
+  ];
+  const sampleWeather = [
+    { timestamp: "2025-09-08T10:00:00Z", value: 0.82 },
+    { timestamp: "2025-09-08T11:00:00Z", value: 0.85 },
+    { timestamp: "2025-09-08T12:00:00Z", value: 0.88 }
+  ];
+
+  // Assign data
+  genData = sampleGen;
+  weatherData = sampleWeather;
+
+  // Update UI
+  summary.textContent = "✅ Sample data loaded successfully (3 rows each). Ready to forecast!";
+
+  // Show pop-up alert
+  const popup = document.createElement("div");
+  popup.textContent = "🎉 Sample data loaded successfully!";
+  popup.style.position = "fixed";
+  popup.style.bottom = "20px";
+  popup.style.right = "20px";
+  popup.style.background = "#4CAF50";
+  popup.style.color = "white";
+  popup.style.padding = "12px 18px";
+  popup.style.borderRadius = "10px";
+  popup.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
+  popup.style.fontWeight = "bold";
+  popup.style.zIndex = "1000";
+  document.body.appendChild(popup);
+
+  // Remove after 2 seconds
+  setTimeout(() => popup.remove(), 2000);
+});
+
+  </script>
 </body>
 </html>
