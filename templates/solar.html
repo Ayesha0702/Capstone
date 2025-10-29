@@ -31,6 +31,23 @@
     .small{font-size:13px;color:var(--muted)}
     footer{max-width:1100px;margin:28px auto;color:var(--muted);padding:8px 20px}
     @media (max-width:900px){.hero{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
+
+    /* 🔹 Preview Tables */
+    .preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    .preview-table th, .preview-table td {
+      border: 1px solid #333;
+      padding: 6px;
+      font-size: 13px;
+      text-align: center;
+    }
+    .preview-table th {
+      background-color: #0f172a;
+      color: #14b8a6;
+    }
   </style>
 </head>
 
@@ -82,32 +99,36 @@
       </aside>
     </section>
 
+    <!-- 🔹 Dashboard Section with Preview -->
     <section class="card" id="dashboard">
       <h3>Dashboard</h3>
-      <div class="grid2">
-        <div>
-          <div class="card" style="padding:12px">
-            <strong>Raw Data Preview</strong>
-            <div style="margin-top:8px;max-height:200px;overflow:auto">
-              <table><thead><tr><th>Timestamp</th><th>Power (kW)</th></tr></thead><tbody id="dataTbody"></tbody></table>
-            </div>
-          </div>
-          <div class="card" style="margin-top:12px;padding:12px">
-            <strong>Forecast Summary</strong>
-            <div style="margin-top:8px;color:var(--muted)" id="summary">No forecast yet. Click “Run Forecast”.</div>
-          </div>
+
+      <div class="card mt-2">
+        <h4>Raw Data Preview</h4>
+        <div id="genPreview">
+          <strong>Generation Data:</strong>
+          <table id="genTable" class="preview-table"></table>
         </div>
 
-        <div>
-          <div class="card chart-wrap" style="padding:12px">
-            <canvas id="forecastChart"></canvas>
-          </div>
-          <div class="card" style="margin-top:12px">
-            <div class="controls">
-              <label class="small">Horizon (hours):</label>
-              <input id="horizonInput" type="number" min="1" max="168" value="24" style="width:70px" />
-            </div>
-          </div>
+        <div id="weatherPreview" style="margin-top: 20px;">
+          <strong>Weather Data:</strong>
+          <table id="weatherTable" class="preview-table"></table>
+        </div>
+      </div>
+
+      <div class="card mt-2">
+        <h4>Forecast Summary</h4>
+        <p id="summary">No data loaded yet.</p>
+      </div>
+
+      <div class="card chart-wrap" style="margin-top:20px">
+        <canvas id="forecastChart"></canvas>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="controls">
+          <label class="small">Horizon (hours):</label>
+          <input id="horizonInput" type="number" min="1" max="168" value="24" style="width:70px" />
         </div>
       </div>
     </section>
@@ -119,31 +140,135 @@
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
 
   <script>
+let genData = [], weatherData = [], forecast = [], chart;
+let summary = document.getElementById("summary"); // FIX: define summary
+
+function parseCSV(text) {
+  const rows = text.trim().split("\n").slice(1);
+  return rows.map(row => {
+    const [timestamp, value] = row.split(",");
+    return { timestamp, value: parseFloat(value) };
+  });
+}
+
+function renderTable(tableId, data, label) {
+  const table = document.getElementById(tableId);
+  table.innerHTML = "";
+  if (!data.length) {
+    table.innerHTML = `<tr><td colspan="2">No ${label} data</td></tr>`;
+    return;
+  }
+  const headers = Object.keys(data[0]);
+  let html = "<tr>" + headers.map(h => `<th>${h}</th>`).join("") + "</tr>";
+  for (let i = 0; i < Math.min(5, data.length); i++) {
+    html += "<tr>" + headers.map(h => `<td>${data[i][h]}</td>`).join("") + "</tr>";
+  }
+  table.innerHTML = html;
+}
+
+function showPreview() {
+  renderTable("genTable", genData, "Generation");
+  renderTable("weatherTable", weatherData, "Weather");
+}
+
 const genInput = document.getElementById('genInput');
 const weatherInput = document.getElementById('weatherInput');
 const genBox = document.getElementById('genBox');
 const weatherBox = document.getElementById('weatherBox');
-const summary = document.getElementById('summary');
-const dataTbody = document.getElementById('dataTbody');
-const horizonInput = document.getElementById('horizonInput');
-let genData = [], weatherData = [], forecast = [], chart;
 
 function readCSVFile(file, type) {
   const reader = new FileReader();
-  reader.onload = e => parseCSV(e.target.result, type);
+  reader.onload = e => {
+    if (type === "gen") genData = parseCSV(e.target.result);
+    else weatherData = parseCSV(e.target.result);
+    showPreview();
+    summary.textContent = `Loaded ${genData.length} gen rows & ${weatherData.length} weather rows.`;
+    const msg = type === "gen" ? "Generation file loaded!" : "Weather file loaded!";
+    alert("✅ " + msg);
+  };
   reader.readAsText(file);
 }
 
-function parseCSV(text, type) {
-  const rows = [];
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  for (const l of lines) {
-    const [time, val] = l.split(',');
-    if (!time || isNaN(parseFloat(val))) continue;
-    rows.push({ timestamp: new Date(time.trim()).toISOString(), value: parseFloat(val) });
+genBox.addEventListener('click', () => genInput.click());
+weatherBox.addEventListener('click', () => weatherInput.click());
+genInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) { genBox.textContent = `📁 ${file.name}`; readCSVFile(file, "gen"); }
+});
+weatherInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) { weatherBox.textContent = `📁 ${file.name}`; readCSVFile(file, "weather"); }
+});
+
+// ---------- SAMPLE DATA ----------
+document.getElementById("sampleBtn").addEventListener("click", async () => {
+  try {
+    const genRes = await fetch("/data/Plant_2_Generation_Data.csv");
+    const weatherRes = await fetch("/data/Plant_2_Weather_Sensor_Data.csv");
+    genData = parseCSV(await genRes.text());
+    weatherData = parseCSV(await weatherRes.text());
+    showPreview();
+    summary.textContent = `✅ Sample data loaded successfully (${genData.length} gen rows & ${weatherData.length} weather rows).`;
+
+    const popup = document.createElement("div");
+    popup.textContent = "🎉 Sample data loaded successfully!";
+    popup.style.position = "fixed";
+    popup.style.bottom = "20px";
+    popup.style.right = "20px";
+    popup.style.background = "#22c55e";
+    popup.style.color = "white";
+    popup.style.padding = "12px 18px";
+    popup.style.borderRadius = "10px";
+    popup.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
+    popup.style.fontWeight = "bold";
+    popup.style.zIndex = "1000";
+    document.body.appendChild(popup);
+    setTimeout(() => popup.remove(), 2500);
+  } catch (err) {
+    alert("❌ Failed to load sample data.");
   }
-  if (type === "gen") genData = rows; else weatherData = rows;
-  summary.textContent = `Loaded ${genData.length} gen rows & ${weatherData.length} weather rows.`;
+});
+
+// ---------- FORECAST ----------
+// ADD DEBUG LOGS
+console.log("Checking if predictBtn exists:", document.getElementById("predictBtn"));
+document.getElementById("predictBtn").addEventListener("click", () => {
+  console.log("Run Forecast button clicked!");
+  runForecast();
+});
+
+async function runForecast() {
+  const n = parseInt(document.getElementById("horizonInput").value, 10) || 24;
+  if (!genData.length || !weatherData.length) return alert("Please upload both CSV files first!");
+  const apiBaseUrl = "http://127.0.0.1:5000"; // Use your local Flask server
+
+  const payload = { horizon: n, generation: genData, weather: weatherData };
+  try {
+    const res = await fetch(`${apiBaseUrl}/forecast`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      summary.innerHTML = `<span style="color:red">❌ Forecast API error: ${result.error || "Unknown error"}</span>`;
+      alert("Forecast failed: " + (result.error || "Unknown error"));
+      return;
+    }
+    if (!result.forecast) {
+      summary.innerHTML = `<span style="color:red">❌ No forecast data returned.</span>`;
+      alert("No forecast data returned.");
+      return;
+    }
+    forecast = result.forecast.map(r => ({ ts: new Date(r.timestamp), power: r.power }));
+    renderForecastChart();
+    const totalKWh = (forecast.reduce((a, b) => a + b.power, 0) / 1000).toFixed(2);
+    summary.innerHTML = `✅ Total forecast energy for the next <strong>${n}</strong> hours is <strong>${totalKWh} kWh</strong>.`;
+  } catch (err) {
+    console.error(err);
+    summary.innerHTML = `<span style="color:red">❌ Forecast JS error: ${err.message}</span>`;
+    alert("Forecast JS error: " + err.message);
+  }
 }
 
 function renderForecastChart() {
@@ -152,7 +277,7 @@ function renderForecastChart() {
   chart = new Chart(ctx, {
     type: "line",
     data: {
-      labels: forecast.map(r => dayjs(r.ts).format('HH:mm')),
+      labels: forecast.map(r => r.ts.toLocaleString()),
       datasets: [{
         label: "Forecast Power (W)",
         data: forecast.map(r => r.power),
@@ -164,42 +289,13 @@ function renderForecastChart() {
   });
 }
 
-async function runForecast() {
-  const n = parseInt(horizonInput.value, 10) || 24;
-  if (!genData.length || !weatherData.length) return alert("Please upload both CSV files first!");
-
-  const payload = { horizon: n, generation: genData, weather: weatherData };
-  const apiBaseUrl = ""; // ✅ auto-detects Render or localhost
-
-  try {
-    const res = await fetch(`${apiBaseUrl}/forecast`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) throw new Error(`Server error (${res.status})`);
-    const result = await res.json();
-    if (!result.forecast?.length) throw new Error("Empty forecast returned.");
-
-    forecast = result.forecast.map(r => ({ ts: new Date(r.timestamp), power: r.power }));
-    renderForecastChart();
-
-    const tot = forecast.reduce((a, b) => a + b.power, 0);
-    const totalKWh = (tot / 1000).toFixed(2);
-    summary.innerHTML = `✅ Total forecast energy for the next <strong>${n}</strong> hours is <strong>${totalKWh} kWh</strong>.`;
-  } catch (err) {
-    console.error("❌ Forecast failed:", err);
-    alert("Forecast failed. Please check your backend logs or console.");
-  }
-}
-
+// ---------- DOWNLOAD ----------
 function downloadForecast() {
   if (!forecast.length) return alert("⚠️ Run the forecast first.");
-  const n = parseInt(horizonInput.value, 10) || 24;
+  const n = parseInt(document.getElementById("horizonInput").value, 10) || 24;
   const totalKWh = (forecast.reduce((a, b) => a + b.power, 0) / 1000).toFixed(2);
   let csv = 'datetime,forecast_kW\n';
-  csv += forecast.map(p => `${dayjs(p.ts).format('YYYY-MM-DD HH:mm')},${(p.power / 1000).toFixed(3)}`).join('\n');
+  csv += forecast.map(p => `${p.ts.toLocaleString()},${(p.power / 1000).toFixed(3)}`).join('\n');
   csv += `\n\nTotal forecast energy for the next ${n} hours is,${totalKWh} kWh`;
   const blob = new Blob([csv], { type: 'text/csv' });
   const link = document.createElement('a');
@@ -208,65 +304,7 @@ function downloadForecast() {
   link.click();
   alert(`✅ Total forecast energy for the next ${n} hours is ${totalKWh} kWh.\nFile downloaded as solarml_forecast.csv.`);
 }
-
-genBox.addEventListener('click', () => genInput.click());
-weatherBox.addEventListener('click', () => weatherInput.click());
-genInput.addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (file) {
-    genBox.textContent = `📁 ${file.name}`;
-    readCSVFile(file, "gen");
-  }
-});
-
-weatherInput.addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (file) {
-    weatherBox.textContent = `📁 ${file.name}`;
-    readCSVFile(file, "weather");
-  }
-});
-document.getElementById("predictBtn").addEventListener("click", runForecast);
 document.getElementById("downloadBtn").addEventListener("click", downloadForecast);
-// Load Sample Data Button
-document.getElementById("sampleBtn").addEventListener("click", async () => {
-  const sampleGen = [
-    { timestamp: "2025-09-08T10:00:00Z", value: 123.4 },
-    { timestamp: "2025-09-08T11:00:00Z", value: 150.2 },
-    { timestamp: "2025-09-08T12:00:00Z", value: 175.6 }
-  ];
-  const sampleWeather = [
-    { timestamp: "2025-09-08T10:00:00Z", value: 0.82 },
-    { timestamp: "2025-09-08T11:00:00Z", value: 0.85 },
-    { timestamp: "2025-09-08T12:00:00Z", value: 0.88 }
-  ];
-
-  // Assign data
-  genData = sampleGen;
-  weatherData = sampleWeather;
-
-  // Update UI
-  summary.textContent = "✅ Sample data loaded successfully (3 rows each). Ready to forecast!";
-
-  // Show pop-up alert
-  const popup = document.createElement("div");
-  popup.textContent = "🎉 Sample data loaded successfully!";
-  popup.style.position = "fixed";
-  popup.style.bottom = "20px";
-  popup.style.right = "20px";
-  popup.style.background = "#4CAF50";
-  popup.style.color = "white";
-  popup.style.padding = "12px 18px";
-  popup.style.borderRadius = "10px";
-  popup.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
-  popup.style.fontWeight = "bold";
-  popup.style.zIndex = "1000";
-  document.body.appendChild(popup);
-
-  // Remove after 2 seconds
-  setTimeout(() => popup.remove(), 2000);
-});
-
-  </script>
+</script>
 </body>
 </html>
