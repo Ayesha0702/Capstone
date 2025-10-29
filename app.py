@@ -31,7 +31,8 @@ def ping():
 
 @app.route('/data/<filename>')
 def serve_data(filename):
-    return send_from_directory('data', filename)
+    data_folder = os.path.join(os.path.dirname(__file__), 'data')
+    return send_from_directory(data_folder, filename)
 
 @app.route("/forecast", methods=["POST"])
 def forecast():
